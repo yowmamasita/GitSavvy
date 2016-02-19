@@ -39,13 +39,42 @@
         "args": { "amend": true }
     },
     {
-        "caption": "git: graph",
+        "caption": "git: graph current branch",
         "command": "gs_log_graph"
+    },
+    {
+        "caption": "git: graph all branches",
+        "command": "gs_log_graph",
+        "args": { "all_branches": true }
     },
     {
         "caption": "github: open file on remote",
         "command": "gs_open_file_on_remote",
         "args": { "preselect": true }
+    },
+    {
+        "caption": "github: open issues",
+        "command": "gs_open_github_issues"
+    },
+    {
+        "caption": "github: open repo",
+        "command": "gs_open_github_repo"
+    },
+    {
+        "caption": "github: review pull request",
+        "command": "gs_pull_request"
+    },
+    {
+        "caption": "github: set remote for integration",
+        "command": "gs_configure_github_remote"
+    },
+    {
+        "caption": "github: add fork as remote",
+        "command": "gs_add_fork_as_remote"
+    },
+    {
+        "caption": "github: create pull request",
+        "command": "gs_create_pull_request"
     },
     {
         "caption": "git: checkout",
@@ -60,18 +89,38 @@
         "command": "gs_checkout_remote_branch"
     },
     {
+        "caption": "git: checkout current file",
+        "command": "gs_checkout_current_file"
+    },
+    {
         "caption": "git: fetch",
         "command": "gs_fetch"
     },
     {
         "caption": "git: pull",
         "command": "gs_pull"
-    }, {
+    },
+    {
         "caption": "git: push",
         "command": "gs_push"
-    }, {
-        "caption": "git: push to branch",
+    },
+    {
+        "caption": "git: push (force)",
+        "command": "gs_push",
+        "args": { "force": true }
+    },
+    {
+        "caption": "git: push all tags",
+        "command": "gs_tag_push",
+        "args": { "push_all": true }
+    },
+    {
+        "caption": "git: push to existing branch",
         "command": "gs_push_to_branch"
+    },
+    {
+        "caption": "git: push to branch name",
+        "command": "gs_push_to_branch_name"
     },
     {
         "caption": "git: ignore current file",
@@ -101,6 +150,16 @@
         "caption": "git: diff cached",
         "command": "gs_diff",
         "args": { "in_cached_mode": true }
+    },
+    {
+        "caption": "git: diff current file",
+        "command": "gs_diff",
+        "args": { "current_file": true }
+    },
+    {
+        "caption": "git: diff current file (cached)",
+        "command": "gs_diff",
+        "args": { "in_cached_mode": true, "current_file": true }
     },
     {
         "caption": "git: blame current file",
@@ -137,5 +196,113 @@
     {
         "caption": "GitSavvy: help",
         "command": "gs_help"
+    },
+    {
+        "caption": "git: generate changelog",
+        "command": "gs_generate_change_log"
+    },
+    {
+        "caption": "GitSavvy: enable logging",
+        "command": "gs_start_logging"
+    },
+    {
+        "caption": "GitSavvy: disable logging",
+        "command": "gs_stop_logging"
+    },
+    {
+        "caption": "GitSavvy: view recorded log",
+        "command": "gs_view_git_log"
+    },
+    {
+        "caption": "git: tags",
+        "command": "gs_show_tags"
+    },
+    {
+        "caption": "git: quick tag",
+        "command": "gs_tag_create"
+    },
+    {
+        "caption": "git: smart tag",
+        "command": "gs_smart_tag"
+    },
+    {
+        "caption": "git: branch",
+        "command": "gs_show_branch"
+    },
+    {
+        "caption": "git: rebase",
+        "command": "gs_show_rebase"
+    },
+    {
+        "caption": "git: reset",
+        "command": "gs_reset"
+    },
+    {
+        "caption": "git: reset (reflog)",
+        "command": "gs_reset_reflog"
+    },
+    {
+        "caption": "git: cherry-pick",
+        "command": "gs_cherry_pick"
+    },
+    {
+        "caption": "flow: init",
+        "command": "gs_git_flow_init"
+    },
+    {
+        "caption": "flow: feature start",
+        "command": "gs_git_flow_feature_start"
+    },
+    {
+        "caption": "flow: feature finish",
+        "command": "gs_git_flow_feature_finish"
+    },
+    {
+        "caption": "flow: release start",
+        "command": "gs_git_flow_release_start"
+    },
+    {
+        "caption": "flow: release finish",
+        "command": "gs_git_flow_release_finish"
+    },
+    {
+        "caption": "flow: hotfix start",
+        "command": "gs_git_flow_hotfix_start"
+    },
+    {
+        "caption": "flow: hotfix finish",
+        "command": "gs_git_flow_hotfix_finish"
+    },
+    {
+        "caption": "flow: support start",
+        "command": "gs_git_flow_support_start"
+    },
+    {
+        "caption": "flow: feature publish",
+        "command": "gs_git_flow_feature_publish"
+    },
+    {
+        "caption": "flow: feature pull",
+        "command": "gs_git_flow_feature_pull"
+    },
+    {
+        "caption": "flow: feature track",
+        "command": "gs_git_flow_feature_track"
+    },
+    {
+        "caption": "flow: release publish",
+        "command": "gs_git_flow_release_publish"
+    },
+    {
+        "caption": "flow: release pull",
+        "command": "gs_git_flow_release_pull"
+    },
+    {
+        "caption": "flow: release track",
+        "command": "gs_git_flow_release_track"
+    },
+    {
+        "caption": "flow: hotfix publish",
+        "command": "gs_git_flow_hotfix_publish"
     }
 ]

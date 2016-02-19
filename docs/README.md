@@ -14,6 +14,7 @@ If you run into any issues not addressed here, please feel free to [open an issu
 - [Inline-diff](staging.md#git-diff-current-file-inline)
 - [Status view](status.md)
 - [GitHub integration](github.md)
+- [git-flow support](flow.md)
 
 
 ## Command Palette
@@ -32,11 +33,10 @@ If you run into any issues not addressed here, please feel free to [open an issu
 - [git: diff cached](staging.md#git-diff-cached)
 
 
-### Commiting
+### Committing
 
 - [git: commit](commit.md#git-commit)
 - [git: commit including unstaged files](commit.md#git-commit-including-unstaged-files)
-- [git: amend previous commit](commit.md#git-amend-previous-commit)
 - [git: quick commit](commit.md#git-quick-commit)
 - [git: quick stage current file and commit](commit.md#git-quick-stage-current-file-and-commit)
 
@@ -45,9 +45,22 @@ If you run into any issues not addressed here, please feel free to [open an issu
 
 - [git: checkout](branch_mgmt.md#git-checkout)
 - [git: checkout new branch](branch_mgmt.md#git-checkout-new-branch)
+- [git: checkout current file](branch_mgmt.md#git-checkout-current-file)
 - [git: merge](branch_mgmt.md#git-merge)
 - [git: abort merge](branch_mgmt.md#git-abort-merge)
 - [git: restart merge for file...](branch_mgmt.md#git-restart-merge-for-file)
+
+
+### Tag management
+
+- [git: tags](tag_mgmt.md#git-tags)
+- [git: quick tag](tag_mgmt.md#git-quick-tag)
+
+
+### Modifying history
+
+- [git: rebase](rebase.md)
+- [git: amend previous commit](commit.md#git-amend-previous-commit)
 
 
 ### Interacting with remotes
@@ -56,6 +69,8 @@ If you run into any issues not addressed here, please feel free to [open an issu
 - [git: fetch](remotes.md#git-fetch)
 - [git: pull](remotes.md#git-pull)
 - [git: push](remotes.md#git-push)
+- [git: push to branch](remotes.md#git-push-to-branch)
+- [git: push to branch name](remotes.md#git-push-to-branch-name)
 
 
 ### History
@@ -65,6 +80,9 @@ If you run into any issues not addressed here, please feel free to [open an issu
 - [git: log by author](history.md#git-log-by-author)
 - [git: blame current file](history.md#git-blame-current-file)
 - [git: graph](history.md#git-graph)
+- [git: reset](misc.md#git-reset)
+- [git: reset (reflog)](misc.md#git-reset-reflog)
+- [git: cherry-pick](misc.md#git-cherry-pick)
 
 
 ### Ignoring files
@@ -78,6 +96,9 @@ If you run into any issues not addressed here, please feel free to [open an issu
 ### Debug
 
 - [GitSavvy: reload modules (debug)](debug.md#gitsavvy-reload-modules-debug)
+- [GitSavvy: start logging](debug.md#gitsavvy-start-logging)
+- [GitSavvy: stop logging](debug.md#gitsavvy-stop-logging)
+- [GitSavvy: view recorded log](debug.md#gitsavvy-view-recorded-log)
 
 
 ## Special Views
@@ -95,3 +116,34 @@ If you run into any issues not addressed here, please feel free to [open an issu
 - [github: open file on remote](github.md#github-open-file-on-remote)
 - [issues integration in commit view](github.md#issues-integration)
 - [contributors integration in commit view](github.md#contributors-integration)
+
+
+## Custom Commands
+
+If you have the need, you can add your own commands that take advantage of GitSavvy's access to your repo. To do so, create a new `User.sublime-commands` file in your `User` Package directory.  Then, add an entry like so:
+
+```javascript
+[
+    {
+        "caption": "git: pull --rebase",
+        "command": "gs_custom",
+        "args": {
+            "output_to_panel": true,
+            "args": ["pull", "--rebase"],
+            "start_msg": "Starting pull (rebase)...",
+            "complete_msg": "Pull complete."
+        }
+    }
+]
+```
+
+For more information see [custom commands documentation](custom.md)
+
+## [git-flow](https://github.com/nvie/gitflow) Support
+
+- [flow: init](flow.md#flow-init)
+- [flow: feature/release/hotfix/support start](flow.md#flow-featurereleasehotfixsupport-start)
+- [flow: feature/release/hotfix/support finish](flow.md#flow-featurereleasehotfixsupport-finish)
+- [flow: feature/release/hotfix publish](flow.md#flow-featurereleasehotfix-publish)
+- [flow: feature/release track](flow.md#flow-featurerelease-track)
+- [flow: feature pull](flow.md#flow-feature-pull)

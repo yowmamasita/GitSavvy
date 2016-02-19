@@ -22,15 +22,15 @@ STYLE_TEMPLATE = """
     <key>scope</key>
     <string>{scope}</string>
     <key>settings</key>
+    <dict>
 {properties}
+    </dict>
 </dict>
 """
 
 PROPERTY_TEMPLATE = """
-    <dict>
         <key>{key}</key>
         <string>{value}</string>
-    </dict>
 """
 
 
@@ -66,7 +66,7 @@ class ThemeGenerator():
 
         path_in_packages = os.path.join("User",
                                         "GitSavvy",
-                                        "GitSavvy.{}.thTheme".format(name))
+                                        "GitSavvy.{}.tmTheme".format(name))
 
         full_path = os.path.join(sublime.packages_path(), path_in_packages)
 

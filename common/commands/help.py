@@ -19,6 +19,14 @@ re_link_scope = re.compile(r"\bmeta\.link\.inline\.markdown\b")
 def get_page_and_anchor(view):
     if util.view.get_is_view_of_type(view, "status"):
         return "status.md", None
+    if util.view.get_is_view_of_type(view, "tags"):
+        return "tag_mgmt.md", "git-tags"
+    if util.view.get_is_view_of_type(view, "log_graph"):
+        return "history.md", "git-graph"
+    if util.view.get_is_view_of_type(view, "branch"):
+        return "branch_mgmt.md", "git-branch"
+    if util.view.get_is_view_of_type(view, "rebase"):
+        return "rebase.md", None
     if util.view.get_is_view_of_type(view, "commit"):
         anchor = ("git-amend-previous-commit"
                   if view.settings().get("git_savvy.commit_view.amend")
@@ -28,11 +36,11 @@ def get_page_and_anchor(view):
         anchor = ("git-diff-cached"
                   if view.settings().get("git_savvy.diff_view.in_cached_mode")
                   else "git-diff")
-        return "history.md", anchor
+        return "staging.md", anchor
 
     if util.view.get_is_view_of_type(view, "inline_diff"):
         anchor = ("git-diff-current-file-inline"
-                  if view.settings().set("git_savvy.inline_diff.cached")
+                  if view.settings().get("git_savvy.inline_diff.cached")
                   else "git-diff-current-file-inline-cached")
         return "staging.md", anchor
 
@@ -170,4 +178,6 @@ class GsHelpGotoPrevious(TextCommand):
 
         settings.set("git_savvy.help.history", history)
 
-        self.view.run_command("gs_help_browse", {"page": page, "anchor": anchor, "add_to_history": False})
+        self.view.run_command("gs_help_browse", {"page": page,
+                                                 "anchor": anchor,
+                                                 "add_to_history": False})

@@ -24,14 +24,17 @@ def parse_remote(remote):
     an object with original url, FQDN, owner, repo, and the token to use for
     this particular FQDN (if available).
     """
+    if remote.endswith(".git"):
+        remote = remote[:-4]
+
     if remote.startswith("git@"):
-        url = remote.replace(":", "/").replace("git@", "http://")[:-4]
+        url = remote.replace(":", "/").replace("git@", "http://")
     elif remote.startswith("http"):
-        url = remote[:-4]
+        url = remote
     else:
         return None
 
-    match = re.match(r"https?://([a-zA-Z-\.0-9]+)/([a-zA-Z-\.0-9]+)/([a-zA-Z-\.0-9]+)/?", url)
+    match = re.match(r"https?://([a-zA-Z-\.0-9]+)/([a-zA-Z-\._0-9]+)/([a-zA-Z-\._0-9]+)/?", url)
 
     if not match:
         return None
@@ -63,6 +66,26 @@ def open_file_in_browser(rel_path, remote, commit_hash, start_line=None, end_lin
     )
 
     open_in_browser(url)
+
+
+def open_repo(remote):
+    """
+    Open the GitHub repo in a new browser window, given the specified remote.
+    """
+    github_repo = parse_remote(remote)
+    if not github_repo:
+        return None
+    open_in_browser(github_repo.url)
+
+
+def open_issues(remote):
+    """
+    Open the GitHub issues in a new browser window, given the specified remote.
+    """
+    github_repo = parse_remote(remote)
+    if not github_repo:
+        return None
+    open_in_browser("{}/issues".format(github_repo.url))
 
 
 def get_api_fqdn(github_repo):
@@ -99,3 +122,6 @@ def query_github(api_url_template, github_repo):
 
 get_issues = partial(query_github, "/repos/{owner}/{repo}/issues")
 get_contributors = partial(query_github, "/repos/{owner}/{repo}/contributors")
+get_forks = partial(query_github, "/repos/{owner}/{repo}/forks")
+get_repo_data = partial(query_github, "/repos/{owner}/{repo}")
+get_pull_requests = partial(query_github, "/repos/{owner}/{repo}/pulls")

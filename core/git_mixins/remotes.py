@@ -10,21 +10,29 @@ class RemotesMixin():
         url/resource.
         """
         entries = self.git("remote", "-v").splitlines()
-        return OrderedDict(re.match("([a-zA-Z_-]+)\t([^ ]+)", entry).groups() for entry in entries)
+        return OrderedDict(re.match("([0-9a-zA-Z_-]+)\t([^ ]+)", entry).groups() for entry in entries)
 
-    def fetch(self, remote=None):
+    def fetch(self, remote=None, prune=True):
         """
         If provided, fetch all changes from `remote`.  Otherwise, fetch
         changes from all remotes.
         """
-        self.git("fetch", remote)
+        self.git("fetch", "--prune" if prune else None, remote if remote else "--all")
 
     def get_remote_branches(self):
         """
         Return a list of all known branches on remotes.
         """
-        stdout = self.git("branch", "-r", "--no-color", "--no-column")
-        return [branch.strip() for branch in stdout.split("\n") if branch]
+        stdout = self.git("branch", "-r", "--no-color")
+        branches = [branch.strip() for branch in stdout.split("\n") if branch]
+
+        # Clean up "origin/HEAD -> origin/master" to "origin/master" if present.
+        for idx, branch_name in enumerate(branches):
+            if "origin/HEAD -> " in branch_name:
+                branches[idx] = branch_name[15:]
+
+        # Remove any duplicate branch names.
+        return [branch for idx, branch in enumerate(branches) if branches.index(branch) == idx]
 
     def pull(self, remote=None, branch=None):
         """
@@ -33,9 +41,32 @@ class RemotesMixin():
         """
         self.git("pull", remote, branch)
 
-    def push(self, remote=None, branch=None):
+    def push(self, remote=None, branch=None, force=False, local_branch=None, set_upstream=False):
         """
         Push to the specified remote and branch if provided, otherwise
         perform default `git push`.
         """
-        self.git("push", remote, branch)
+        return self.git(
+            "push",
+            "--force" if force else None,
+            "--set-upstream" if set_upstream else None,
+            remote,
+            branch if not local_branch else "{}:{}".format(local_branch, branch)
+            )
+
+    def get_upstream_for_active_branch(self):
+        """
+        Return ref for remote tracking branch.
+        """
+        return self.git("rev-parse", "--abbrev-ref", "--symbolic-full-name",
+                        "@{u}", throw_on_stderr=False).strip()
+
+    def get_active_remote_branch(self):
+        """
+        Return named tuple of the upstream for active branch.
+        """
+        upstream = self.get_upstream_for_active_branch()
+        for branch in self.get_branches():
+            if branch.name_with_remote == upstream:
+                return branch
+        return None

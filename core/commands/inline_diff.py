@@ -8,6 +8,7 @@ from ...common import util
 from ...common.theme_generator import ThemeGenerator
 from ..git_command import GitCommand
 from ..constants import MERGE_CONFLICT_PORCELAIN_STATUSES
+from ...common.util import debug
 
 HunkReference = namedtuple("HunkReference", ("section_start", "section_end", "hunk", "line_types", "lines"))
 
@@ -69,10 +70,34 @@ class GsInlineDiffCommand(WindowCommand, GitCommand):
         additional inline-diff-related style rules added.  Save this color scheme
         to disk and set it as the target view's active color scheme.
         """
+        colors = sublime.load_settings("GitSavvy.sublime-settings").get("colors")
+
         original_color_scheme = target_view.settings().get("color_scheme")
         themeGenerator = ThemeGenerator(original_color_scheme)
-        themeGenerator.add_scoped_style("GitSavvy Added Line", "git_savvy.change.addition", background="#37A832")
-        themeGenerator.add_scoped_style("GitSavvy Removed Line", "git_savvy.change.removal", background="#A83732")
+        themeGenerator.add_scoped_style(
+            "GitSavvy Added Line",
+            "git_savvy.change.addition",
+            background=colors["inline_diff"]["add_background"],
+            foreground=colors["inline_diff"]["add_foreground"]
+            )
+        themeGenerator.add_scoped_style(
+            "GitSavvy Removed Line",
+            "git_savvy.change.removal",
+            background=colors["inline_diff"]["remove_background"],
+            foreground=colors["inline_diff"]["remove_foreground"]
+            )
+        themeGenerator.add_scoped_style(
+            "GitSavvy Added Line Bold",
+            "git_savvy.change.addition.bold",
+            background=colors["inline_diff"]["add_background_bold"],
+            foreground=colors["inline_diff"]["add_foreground_bold"]
+            )
+        themeGenerator.add_scoped_style(
+            "GitSavvy Removed Line Bold",
+            "git_savvy.change.removal.bold",
+            background=colors["inline_diff"]["remove_background_bold"],
+            foreground=colors["inline_diff"]["remove_foreground_bold"]
+            )
         themeGenerator.apply_new_theme("active-diff-view." + file_ext, target_view)
 
 
@@ -98,6 +123,12 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
     def run(self, edit):
         file_path = self.file_path
         in_cached_mode = self.view.settings().get("git_savvy.inline_diff.cached")
+        savvy_settings = sublime.load_settings("GitSavvy.sublime-settings")
+        ignore_eol_arg = (
+            "--ignore-space-at-eol"
+            if savvy_settings.get("inline_diff_ignore_eol_whitespaces", True)
+            else None
+        )
 
         if in_cached_mode:
             indexed_object = self.get_indexed_file_object(file_path)
@@ -105,7 +136,7 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
             head_file_contents = self.get_object_contents(head_file_object)
 
             # Display the changes introduced between HEAD and index.
-            stdout = self.git("diff", "-U0", head_file_object, indexed_object)
+            stdout = self.git("diff", "--no-color", "-U0", ignore_eol_arg, head_file_object, indexed_object)
             diff = util.parse_diff(stdout)
             inline_diff_contents, replaced_lines = \
                 self.get_inline_diff_contents(head_file_contents, diff)
@@ -116,7 +147,7 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
             working_tree_file_object = self.get_object_from_string(working_tree_file_contents)
 
             # Display the changes introduced between index and working dir.
-            stdout = self.git("diff", "-U0", indexed_object, working_tree_file_object)
+            stdout = self.git("diff", "--no-color", "-U0", ignore_eol_arg, indexed_object, working_tree_file_object)
             diff = util.parse_diff(stdout)
             inline_diff_contents, replaced_lines = \
                 self.get_inline_diff_contents(indexed_object_contents, diff)
@@ -129,10 +160,17 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
         self.view.replace(edit, sublime.Region(0, self.view.size()), inline_diff_contents)
 
         if cursors:
-            self.view.sel().clear()
-            pt = self.view.text_point(row, 0)
-            self.view.sel().add(sublime.Region(pt, pt))
-            self.view.show_at_center(pt)
+            if (row, col) == (0, 0) and savvy_settings.get("inline_diff_auto_scroll", False):
+                self.view.run_command("gs_inline_diff_goto_next_hunk")
+            else:
+                self.view.sel().clear()
+                pt = self.view.text_point(row, 0)
+                self.view.sel().add(sublime.Region(pt, pt))
+                self.view.show_at_center(pt)
+                # The following shouldn't strictly be necessary, but Sublime sometimes jumps
+                # to the right when show_at_center for a column-zero-point occurs.
+                _, vp_y = self.view.viewport_position()
+                self.view.set_viewport_position((0, vp_y), False)
 
         self.highlight_regions(replaced_lines)
         self.view.set_read_only(True)
@@ -171,7 +209,7 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
         Given the object hash to a versioned object in the current git repo,
         display the contents of that object.
         """
-        return self.git("show", object_hash)
+        return self.git("show", "--no-color", object_hash)
 
     def get_file_contents(self, file_path):
         """
@@ -234,7 +272,7 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
 
             # Discard the first character of every diff-line (`+`, `-`).
             lines = lines[:section_start] + raw_lines + lines[head_end + adjustment:]
-            replaced_lines.append((section_start, section_end, line_types))
+            replaced_lines.append((section_start, section_end, line_types, raw_lines))
 
             adjustment += len(diff_lines) - hunk.head_length
 
@@ -248,10 +286,11 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
         the removed regions in red.
         """
         add_regions = []
+        add_bold_regions = []
         remove_regions = []
+        remove_bold_regions = []
 
-        for section_start, section_end, line_types in replaced_lines:
-
+        for section_start, section_end, line_types, raw_lines in replaced_lines:
             region_start = None
             region_end = None
             region_type = None
@@ -264,8 +303,7 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
                     region_type = line_type
                     region_start = line.begin()
                 elif region_type != line_type:
-                    # End region with final character of previous line.
-                    region_end = line.begin() - 1
+                    region_end = line.begin()
                     l = add_regions if region_type == "+" else remove_regions
                     l.append(sublime.Region(region_start, region_end))
 
@@ -276,8 +314,38 @@ class GsInlineDiffRefreshCommand(TextCommand, GitCommand):
             l = add_regions if region_type == "+" else remove_regions
             l.append(sublime.Region(region_start, region_end))
 
-        self.view.add_regions("git-better-added-lines", add_regions, scope="git_savvy.change.addition")
-        self.view.add_regions("git-better-removed-lines", remove_regions, scope="git_savvy.change.removal")
+            # If there are both additions and removals in the hunk, display additional
+            # highlighting for the in-line changes (if similarity is above threshold).
+            if "+" in line_types and "-" in line_types:
+                # Determine start of hunk/section.
+                section_start_idx = self.view.text_point(section_start, 0)
+
+                # Removed lines come first in a hunk.
+                remove_start = section_start_idx
+                first_added_line = line_types.index("+")
+                add_start = section_start_idx + len("\n".join(raw_lines[:first_added_line])) + 1
+
+                removed_part = "\n".join(raw_lines[:first_added_line])
+                added_part = "\n".join(raw_lines[first_added_line:])
+                changes = util.diff_string.get_changes(removed_part, added_part)
+
+                for change in changes:
+                    if change.type in (util.diff_string.DELETE, util.diff_string.REPLACE):
+                        # Display bold color in removed hunk area.
+                        region_start = remove_start + change.old_start
+                        region_end = remove_start + change.old_end
+                        remove_bold_regions.append(sublime.Region(region_start, region_end))
+
+                    if change.type in (util.diff_string.INSERT, util.diff_string.REPLACE):
+                        # Display bold color in added hunk area.
+                        region_start = add_start + change.new_start
+                        region_end = add_start + change.new_end
+                        add_bold_regions.append(sublime.Region(region_start, region_end))
+
+        self.view.add_regions("git-savvy-added-lines", add_regions, scope="git_savvy.change.addition")
+        self.view.add_regions("git-savvy-removed-lines", remove_regions, scope="git_savvy.change.removal")
+        self.view.add_regions("git-savvy-added-bold", add_bold_regions, scope="git_savvy.change.addition.bold")
+        self.view.add_regions("git-savvy-removed-bold", remove_bold_regions, scope="git_savvy.change.removal.bold")
 
     def verify_not_conflict(self):
         fpath = self.get_rel_path()
@@ -318,6 +386,12 @@ class GsInlineDiffStageOrResetBase(TextCommand, GitCommand):
 
     def run_async(self, reset=False):
         in_cached_mode = self.view.settings().get("git_savvy.inline_diff.cached")
+        savvy_settings = sublime.load_settings("GitSavvy.sublime-settings")
+        ignore_ws = (
+            "--ignore-whitespace"
+            if savvy_settings.get("inline_diff_ignore_eol_whitespaces", True)
+            else None
+        )
         selections = self.view.sel()
         region = selections[0]
         # For now, only support staging selections of length 0.
@@ -327,7 +401,12 @@ class GsInlineDiffStageOrResetBase(TextCommand, GitCommand):
         # Git lines are 1-indexed; Sublime rows are 0-indexed.
         line_number = self.view.rowcol(region.begin())[0] + 1
         diff_lines = self.get_diff_from_line(line_number, reset)
-        header = DIFF_HEADER.format(path=self.get_rel_path())
+
+        rel_path = self.get_rel_path()
+        if os.name == "nt":
+            # Git expects `/`-delimited relative paths in diff.
+            rel_path = rel_path.replace("\\", "/")
+        header = DIFF_HEADER.format(path=rel_path)
 
         full_diff = header + diff_lines + "\n"
 
@@ -340,7 +419,7 @@ class GsInlineDiffStageOrResetBase(TextCommand, GitCommand):
         # 2) The user is in non-cached mode and wants to undo a line/hunk, so
         #    DO apply the patch in reverse, and do apply it both against the
         #    index and the working tree.
-        # 3) The user is in cached mode and wants to undo a line hunk, so DO
+        # 3) The user is in cached mode and wants to undo a line/hunk, so DO
         #    apply the patch in reverse, but only apply it against the cached/
         #    indexed file.
         #
@@ -350,13 +429,24 @@ class GsInlineDiffStageOrResetBase(TextCommand, GitCommand):
         args = [
             "apply",
             "--unidiff-zero",
-            "-R" if (reset or in_cached_mode) else None,
+            "--reverse" if (reset or in_cached_mode) else None,
             "--cached" if (not reset or in_cached_mode) else None,
+            ignore_ws,
             "-"
         ]
 
         self.git(*args, stdin=full_diff)
+        self.save_to_history(args, full_diff)
         self.view.run_command("gs_inline_diff_refresh")
+
+    def save_to_history(self, args, full_diff):
+        """
+        After successful `git apply`, save the apply-data into history
+        attached to the view, for later Undo.
+        """
+        history = self.view.settings().get("git_savvy.inline_diff.history") or []
+        history.append((args, full_diff))
+        self.view.settings().set("git_savvy.inline_diff.history", history)
 
 
 class GsInlineDiffStageOrResetLineCommand(GsInlineDiffStageOrResetBase):
@@ -370,11 +460,27 @@ class GsInlineDiffStageOrResetLineCommand(GsInlineDiffStageOrResetBase):
 
     def get_diff_from_line(self, line_no, reset):
         hunks = diff_view_hunks[self.view.id()]
+        add_length_earlier_in_diff = 0
+        cur_hunk_begin_on_minus = 0
+        cur_hunk_begin_on_plus = 0
 
         # Find the correct hunk.
         for hunk_ref in hunks:
             if hunk_ref.section_start <= line_no and hunk_ref.section_end >= line_no:
                 break
+            else:
+                # we loop through all hooks before selected hunk.
+                # used create a correct diff when stage, unstage
+                # need to make undo work properly.
+                for type in hunk_ref.line_types:
+                    if type == "+":
+                        add_length_earlier_in_diff += 1
+                    elif type == "-":
+                        add_length_earlier_in_diff -= 1
+                    else:
+                        # should never happen that it will raise.
+                        raise ValueError('type have to be eather "+" or "-"')
+
         # Correct hunk not found.
         else:
             return
@@ -386,25 +492,49 @@ class GsInlineDiffStageOrResetLineCommand(GsInlineDiffStageOrResetBase):
         line = hunk_ref.lines[index_in_hunk]
         line_type = hunk_ref.line_types[index_in_hunk]
 
+        # need to make undo work properly when undoing
+        # a specific line.
+        for type in hunk_ref.line_types[:index_in_hunk]:
+            if type == "-":
+                cur_hunk_begin_on_minus += 1
+            else:
+                # type will be +
+                cur_hunk_begin_on_plus += 1
+
         # Removed lines are always first with `git diff -U0 ...`. Therefore, the
         # line to remove will be the Nth line, where N is the line index in the hunk.
         head_start = hunk_ref.hunk.head_start if line_type == "+" else hunk_ref.hunk.head_start + index_in_hunk
-        # TODO: Investigate this off-by-one ???
-        if not reset:
-            head_start += 1
 
-        return ("@@ -{head_start},{head_length} +{new_start},{new_length} @@\n"
+        if reset:
+            xhead_start = head_start - index_in_hunk + (0 if line_type == "+" else add_length_earlier_in_diff)
+
+            return ("@@ -{head_start},{head_length} +{new_start},{new_length} @@\n"
                 "{line_type}{line}").format(
-                    head_start=head_start,
-                    head_length="0" if line_type == "+" else "1",
-                    # If head_length is zero, diff will report original start position
-                    # as one less than where the content is inserted, for example:
-                    #   @@ -75,0 +76,3 @@
-                    new_start=head_start + (0 if line_type == "+" else 1),
-                    new_length="1" if line_type == "+" else "0",
-                    line_type=line_type,
-                    line=line
-                )
+                head_start=(xhead_start if xhead_start >= 0 else cur_hunk_begin_on_plus),
+                head_length="0" if line_type == "+" else "1",
+                # If head_length is zero, diff will report original start position
+                # as one less than where the content is inserted, for example:
+                #   @@ -75,0 +76,3 @@
+                new_start=head_start - 1 - cur_hunk_begin_on_minus + index_in_hunk + add_length_earlier_in_diff + (1 if line_type == "+" else 0),
+                new_length="1" if line_type == "+" else "0",
+                line_type=line_type,
+                line=line
+            )
+
+        else:
+            head_start += 1
+            return ("@@ -{head_start},{head_length} +{new_start},{new_length} @@\n"
+                "{line_type}{line}").format(
+                head_start=head_start + (-1 if line_type == "-" else 0),
+                head_length="0" if line_type == "+" else "1",
+                # If head_length is zero, diff will report original start position
+                # as one less than where the content is inserted, for example:
+                #   @@ -75,0 +76,3 @@
+                new_start=head_start + (-1 if line_type == "-" else 0),
+                new_length="1" if line_type == "+" else "0",
+                line_type=line_type,
+                line=line
+            )
 
 
 class GsInlineDiffStageOrResetHunkCommand(GsInlineDiffStageOrResetBase):
@@ -417,18 +547,32 @@ class GsInlineDiffStageOrResetHunkCommand(GsInlineDiffStageOrResetBase):
 
     def get_diff_from_line(self, line_no, reset):
         hunks = diff_view_hunks[self.view.id()]
+        add_length_earlier_in_diff = 0
 
         # Find the correct hunk.
         for hunk_ref in hunks:
             if hunk_ref.section_start <= line_no and hunk_ref.section_end >= line_no:
                 break
+            else:
+                # we loop through all hooks before selected hunk.
+                # used create a correct diff when stage, unstage
+                # need to make undo work properly.
+                for type in hunk_ref.line_types:
+                    if type == "+":
+                        add_length_earlier_in_diff += 1
+                    elif type == "-":
+                        add_length_earlier_in_diff -= 1
+                    else:
+                        # should never happen that it will raise.
+                        raise ValueError('type have to be eather "+" or "-"')
+
         # Correct hunk not found.
         else:
             return
 
         stand_alone_header = \
             "@@ -{head_start},{head_length} +{new_start},{new_length} @@".format(
-                head_start=hunk_ref.hunk.head_start,
+                head_start=hunk_ref.hunk.head_start + (add_length_earlier_in_diff if reset else 0),
                 head_length=hunk_ref.hunk.head_length,
                 # If head_length is zero, diff will report original start position
                 # as one less than where the content is inserted, for example:
@@ -438,6 +582,65 @@ class GsInlineDiffStageOrResetHunkCommand(GsInlineDiffStageOrResetBase):
             )
 
         return "\n".join([stand_alone_header] + hunk_ref.hunk.raw_lines[1:])
+
+
+class GsInlineDiffOpenFile(TextCommand):
+
+    """
+    Opens an editable view of the file being diff'd.
+    """
+
+    @util.view.single_cursor_coords
+    def run(self, coords, edit):
+        if not coords:
+            return
+        cursor_line, cursor_column = coords
+
+        # Git lines/columns are 1-indexed; Sublime rows/columns are 0-indexed.
+        row, col = self.get_editable_position(cursor_line + 1, cursor_column + 1)
+        self.open_file(row, col)
+
+    def open_file(self, row, col):
+        file_name = self.view.settings().get("git_savvy.file_path")
+        self.view.window().open_file(
+            "{file}:{row}:{col}".format(
+                file=file_name,
+                row=row,
+                col=col
+                ),
+            sublime.ENCODED_POSITION
+            )
+
+    def get_editable_position(self, line_no, col_no):
+        hunk_ref = self.get_closest_hunk_ref_before(line_no)
+
+        # No diff hunks exist before the selected line.
+        if not hunk_ref:
+            return line_no, col_no
+
+        # The selected line is within the hunk.
+        if hunk_ref.section_end >= line_no:
+            hunk_change_index = line_no - hunk_ref.section_start - 1
+            change = hunk_ref.hunk.changes[hunk_change_index]
+            # If a removed line is selected, the cursor will be offset by non-existant
+            # columns of the removed lines.  Therefore, move the cursor to column zero
+            # when removed line is selected.
+            return change.saved_pos, col_no if change.type == "+" else 0
+
+        # The selected line is after the hunk.
+        else:
+            lines_after_hunk_end = line_no - hunk_ref.section_end - 1
+            # Adjust line position for remove-only hunks.
+            if all(change.type == "-" for change in hunk_ref.hunk.changes):
+                lines_after_hunk_end += 1
+            hunk_end_in_saved = hunk_ref.hunk.saved_start + hunk_ref.hunk.saved_length
+            return hunk_end_in_saved + lines_after_hunk_end, col_no
+
+    def get_closest_hunk_ref_before(self, line_no):
+        hunks = diff_view_hunks[self.view.id()]
+        for hunk_ref in reversed(hunks):
+            if hunk_ref.section_start < line_no:
+                return hunk_ref
 
 
 class GsInlineDiffGotoBase(TextCommand):
@@ -497,3 +700,27 @@ class GsInlineDiffGotoPreviousHunk(GsInlineDiffGotoBase):
 
         if previous_hunk_ref:
             return self.view.text_point(previous_hunk_ref.section_start, 0)
+
+
+class GsInlineDiffUndo(TextCommand, GitCommand):
+
+    """
+    Undo the last action taken in the inline-diff view, if possible.
+    """
+
+    def run(self, edit):
+        sublime.set_timeout_async(self.run_async, 0)
+
+    def run_async(self):
+        history = self.view.settings().get("git_savvy.inline_diff.history") or []
+        if not history:
+            return
+
+        last_args, last_stdin = history.pop()
+        # Toggle the `--reverse` flag.
+        last_args[2] = "--reverse" if not last_args[2] else None
+
+        self.git(*last_args, stdin=last_stdin)
+        self.view.settings().set("git_savvy.inline_diff.history", history)
+
+        self.view.run_command("gs_inline_diff_refresh")

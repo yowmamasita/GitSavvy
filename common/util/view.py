@@ -54,6 +54,29 @@ def get_is_view_of_type(view, typ):
     return not not view.settings().get("git_savvy.{}_view".format(typ))
 
 
+##########
+# GLOBAL #
+##########
+
+def refresh_gitsavvy(view):
+    """
+    Called after GitSavvy action was taken that may have effected the
+    state of the Git repo.
+    """
+    if view.settings().get("git_savvy.interface") is not None:
+        view.run_command("gs_interface_refresh")
+    view.run_command("gs_update_status_bar")
+
+
+def handle_closed_view(view):
+    if view.settings().get("git_savvy.interface") is not None:
+        view.run_command("gs_interface_close")
+    if view.settings().get("git_savvy.edit_view"):
+        view.run_command("gs_edit_view_close")
+    if view.settings().get("git_savvy.commit_view"):
+        view.run_command("gs_commit_view_close")
+
+
 ############################
 # IN-VIEW HELPER FUNCTIONS #
 ############################
@@ -81,11 +104,14 @@ def _region_within_regions(all_outer, inner):
 
 
 def get_lines_from_regions(view, regions, valid_ranges=None):
-    full_line_regions = (view.full_line(region) for region in regions)
+    if valid_ranges == []:
+        return []
 
-    valid_regions = ([region for region in full_line_regions if _region_within_regions(valid_ranges, region)]
+    line_regions = (view.line(region) for region in regions)
+
+    valid_regions = ([region for region in line_regions if _region_within_regions(valid_ranges, region)]
                      if valid_ranges else
-                     full_line_regions)
+                     line_regions)
 
     return [line for region in valid_regions for line in view.substr(region).split("\n")]
 
@@ -100,3 +126,13 @@ def get_instance_after_pt(view, pt, pattern):
     instances = tuple(region.a for region in view.find_all(pattern))
     instance_index = bisect.bisect(instances, pt)
     return instances[instance_index] if instance_index < len(instances) else None
+
+
+#################
+# MISCELLANEOUS #
+#################
+
+def disable_other_plugins(view):
+    # Disable key-bindings for Vitageous
+    # https://github.com/guillermooo/Vintageous/wiki/Disabling
+    view.settings().set('__vi_external_disable', True)

@@ -3,6 +3,7 @@ from sublime_plugin import WindowCommand
 
 from ..git_command import GitCommand
 from ..constants import MERGE_CONFLICT_PORCELAIN_STATUSES
+from ...common import util
 
 
 class GsMergeCommand(WindowCommand, GitCommand):
@@ -36,7 +37,7 @@ class GsMergeCommand(WindowCommand, GitCommand):
             addl_info.append(branch.tracking_status)
 
         if addl_info:
-            entry += "(" + " - ".join(addl_info) + ")"
+            entry += " (" + " - ".join(addl_info) + ")"
 
         return entry
 
@@ -44,11 +45,16 @@ class GsMergeCommand(WindowCommand, GitCommand):
         if index == -1:
             return
         branch = self._branches[index]
+
+        savvy_settings = sublime.load_settings("GitSavvy.sublime-settings")
         try:
-            self.git("merge", "--log", branch.name_with_remote)
+            self.git(
+                "merge",
+                "--log" if savvy_settings.get("merge_log") else None,
+                branch.name_with_remote
+                )
         finally:
-            if self.window.active_view().settings().get("git_savvy.status_view"):
-                self.window.active_view().run_command("gs_status_refresh")
+            util.view.refresh_gitsavvy(self.window.active_view())
 
 
 class GsAbortMergeCommand(WindowCommand, GitCommand):
@@ -62,8 +68,7 @@ class GsAbortMergeCommand(WindowCommand, GitCommand):
 
     def run_async(self):
         self.git("reset", "--merge")
-        if self.window.active_view().settings().get("git_savvy.status_view"):
-            self.window.active_view().run_command("gs_status_refresh")
+        util.view.refresh_gitsavvy(self.window.active_view())
 
 
 class GsRestartMergeForFileCommand(WindowCommand, GitCommand):
@@ -92,5 +97,4 @@ class GsRestartMergeForFileCommand(WindowCommand, GitCommand):
         fpath = self._conflicts[index]
         self.git("checkout", "--conflict=merge", "--", fpath)
 
-        if self.window.active_view().settings().get("git_savvy.status_view"):
-            self.window.active_view().run_command("gs_status_refresh")
+        util.view.refresh_gitsavvy(self.window.active_view())

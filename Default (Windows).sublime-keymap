@@ -8,6 +8,14 @@
         "keys": ["ctrl+enter"],
         "command": "gs_commit_view_do_commit",
         "context": [
+            { "key": "setting.git_savvy.get_long_text_view", "operator": "equal", "operand": true },
+            { "key": "setting.git_savvy.commit_on_close", "operator": "equal", "operand": false }
+        ]
+    },
+    {
+        "keys": ["ctrl+s"],
+        "command": "gs_commit_view_sign",
+        "context": [
             { "key": "setting.git_savvy.get_long_text_view", "operator": "equal", "operand": true }
         ]
     },
@@ -64,6 +72,61 @@
         "context": [
             { "key": "setting.git_savvy.help_view", "operator": "equal", "operand": true }
         ]
-    }
+    },
 
+    //////////////////////
+    // INLINE DIFF VIEW //
+    //////////////////////
+
+    {
+        "keys": ["ctrl+z"],
+        "command": "gs_inline_diff_undo",
+        "context": [
+            { "key": "setting.git_savvy.inline_diff_view", "operator": "equal", "operand": true }
+        ]
+    },
+
+    ////////////////
+    // GRAPH VIEW //
+    ////////////////
+
+    {
+        "keys": ["ctrl+enter"],
+        "command": "gs_log_graph_action",
+        "context": [
+            { "key": "setting.git_savvy.log_graph_view", "operator": "equal", "operand": true }
+        ],
+        "args": { "action": "checkout" }
+    },
+
+    ///////////////
+    // EDIT VIEW //
+    ///////////////
+
+    {
+        "keys": ["ctrl+enter"],
+        "command": "gs_edit_view_complete",
+        "context": [
+            { "key": "setting.git_savvy.edit_view", "operator": "equal", "operand": true }
+        ]
+    },
+
+    /////////////////
+    // REBASE VIEW //
+    /////////////////
+
+    {
+        "keys": ["ctrl+z"],
+        "command": "gs_rebase_undo",
+        "context": [
+            { "key": "setting.git_savvy.rebase_view", "operator": "equal", "operand": true },
+        ]
+    },
+    {
+        "keys": ["ctrl+y"],
+        "command": "gs_rebase_redo",
+        "context": [
+            { "key": "setting.git_savvy.rebase_view", "operator": "equal", "operand": true },
+        ]
+    }
 ]

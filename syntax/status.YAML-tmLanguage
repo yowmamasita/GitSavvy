@@ -2,6 +2,7 @@
 name: GitSavvy Status
 scopeName: git-savvy.status
 uuid: 56ea09df-2601-4d20-bb8d-b6834db991c4
+hidden: true
 
 patterns:
 - comment: Status summary
@@ -16,10 +17,15 @@ patterns:
     match: '^  ROOT:.+'
   - comment: branch names
     name: constant.other.git-savvy.status.branch-name
-    match: '`[A-Za-z\-_/]+`'
+    match: '`[^`]+`'
   - comment: ahead or behind
     name: keyword.other.git-savvy.status.ahead-behind
     match: '(ahead)|(behind)'
+  - comment: head summary
+    name: comment.git-savvy.status.head-commit
+    match: '^  HEAD:    ([0-9a-f]{7,40} )?.+'
+    captures:
+      '1': { name: constant.other.git-savvy.status.sha1 }
 
 - comment: section
   name: meta.git-savvy.status.section
@@ -39,7 +45,7 @@ patterns:
   end: '^$'
   patterns:
   - name: meta.git-savvy.status.saved_stash
-    match: '^    (.+)$'
+    match: '^    (.+)\n$'
 
 - comment: Key-bindings menu
   name: comment.git-savvy.status.key-bindings-menu
@@ -51,6 +57,6 @@ patterns:
     captures:
       '1': { name: support.type.git-savvy.key-bindings-header-text }
   - name: meta.git-savvy.key-bindings-key-stroke
-    match: '\[([A-Za-z])\]'
+    match: '\[([A-Za-z\,\.\-]+)\]'
     captures:
       '1': { name: constant.character.git-savvy-key-binding-key }

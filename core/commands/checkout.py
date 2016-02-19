@@ -1,7 +1,10 @@
+import re
 import sublime
 from sublime_plugin import WindowCommand
 
 from ..git_command import GitCommand
+from ...common import util
+
 
 NEW_BRANCH_PROMPT = "Branch name:"
 
@@ -17,7 +20,7 @@ class GsCheckoutBranchCommand(WindowCommand, GitCommand):
         sublime.set_timeout_async(self.run_async, 0)
 
     def run_async(self):
-        stdout = self.git("branch", "--no-color", "--no-column")
+        stdout = self.git("branch", "--no-color")
         branch_entries = (branch.strip() for branch in stdout.split("\n") if branch)
 
         # The line with the active branch will begin with an asterisk.
@@ -39,6 +42,7 @@ class GsCheckoutBranchCommand(WindowCommand, GitCommand):
         branch_name = self.local_inactive_branches[branch_name_index]
         self.git("checkout", branch_name)
         sublime.status_message("Checked out `{}` branch.".format(branch_name))
+        util.view.refresh_gitsavvy(self.window.active_view())
 
 
 class GsCheckoutNewBranchCommand(WindowCommand, GitCommand):
@@ -50,12 +54,20 @@ class GsCheckoutNewBranchCommand(WindowCommand, GitCommand):
     def run(self):
         sublime.set_timeout_async(self.run_async)
 
-    def run_async(self):
-        self.window.show_input_panel(NEW_BRANCH_PROMPT, "", self.on_done, None, None)
+    def run_async(self, name=""):
+        self.window.show_input_panel(NEW_BRANCH_PROMPT, name, self.on_done, None, None)
 
     def on_done(self, branch_name):
+        pattern = r"^(?!\.|.*\.\..*|.*@.*|\/)[a-zA-Z0-9\-\_\/\.]+(?<!\.lock)(?<!\/)(?<!\.)$"
+        match = re.match(pattern, branch_name)
+        if not match:
+            sublime.error_message("`{}` is a invalid branch name.\nRead more on $(man git-check-ref-format)".format(branch_name))
+            sublime.set_timeout_async(self.run_async(branch_name))
+            return None
+
         self.git("checkout", "-b", branch_name)
         sublime.status_message("Created and checked out `{}` branch.".format(branch_name))
+        util.view.refresh_gitsavvy(self.window.active_view())
 
 
 class GsCheckoutRemoteBranchCommand(WindowCommand, GitCommand):
@@ -85,3 +97,16 @@ class GsCheckoutRemoteBranchCommand(WindowCommand, GitCommand):
         local_name = remote_branch.split("/", 1)[1]
         self.git("checkout", "-b", local_name, "--track", remote_branch)
         sublime.status_message("Checked out `{}` as local branch `{}`.".format(remote_branch, local_name))
+        util.view.refresh_gitsavvy(self.window.active_view())
+
+
+class GsCheckoutCurrentFileCommand(WindowCommand, GitCommand):
+
+    """
+    Reset the current active file to HEAD.
+    """
+
+    def run(self):
+        if self.file_path:
+            self.checkout_file(self.file_path)
+            sublime.status_message("Successfully checked out {} from head.".format(self.file_path))

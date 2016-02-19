@@ -1,4 +1,5 @@
 import re
+import string
 
 
 class ActiveBranchMixin():
@@ -7,16 +8,53 @@ class ActiveBranchMixin():
         """
         Return the name of the last checkout-out branch.
         """
-        stdout = self.git("branch")
+        stdout = self.git("branch", "--no-color")
         try:
             correct_line = next(line for line in stdout.split("\n") if line.startswith("*"))
             return correct_line[2:]
         except StopIteration:
             return None
 
-    def get_branch_status(self):
+    def _get_branch_status_components(self):
         """
-        Return a string that gives:
+        Return a tuple of:
+
+          0) boolean indicating whether repo is in detached state
+          1) boolean indicating whether this is initial commit
+          2) active branch name
+          3) remote branch name
+          4) boolean indicating whether branch is clean
+          5) # commits ahead of remote
+          6) # commits behind of remote
+          7) boolean indicating whether the remote branch is gone
+        """
+        stdout = self.git("status", "-b", "--porcelain").strip()
+
+        first_line, *addl_lines = stdout.split("\n", 2)
+        # Any additional lines will mean files have changed or are untracked.
+        clean = len(addl_lines) == 0
+
+        if first_line.startswith("## HEAD (no branch)"):
+            return True, False, None, None, clean, None, None, False
+
+        if first_line.startswith("## Initial commit on "):
+            return False, True, first_line[21:], clean, None, None, None, False
+
+        valid_punctuation = "".join(c for c in string.punctuation if c not in "~^:?*[\\")
+        branch_pattern = "[A-Za-z0-9" + re.escape(valid_punctuation) + "]+?"
+        short_status_pattern = "## (" + branch_pattern + ")(\.\.\.(" + branch_pattern + ")( \[((ahead (\d+))(, )?)?(behind (\d+))?(gone)?\])?)?$"
+        status_match = re.match(short_status_pattern, first_line)
+
+        if not status_match:
+            return False, False, None if clean else addl_lines[0], None, clean, None, None, False
+
+        branch, _, remote, _, _, _, ahead, _, _, behind, gone = status_match.groups()
+
+        return False, False, branch, remote, clean, ahead, behind, bool(gone)
+
+    def get_branch_status(self, delim=None):
+        """
+        Return a tuple of:
 
           1) the name of the active branch
           2) the status of the active local branch
@@ -24,38 +62,53 @@ class ActiveBranchMixin():
 
         If no remote or tracking branch is defined, do not include remote-data.
         If HEAD is detached, provide that status instead.
+
+        If a delimeter is provided, join tuple components with it, and return
+        that value.
         """
-        stdout = self.git("status", "-b", "--porcelain").strip()
+        detached, initial, branch, remote, clean, ahead, behind, gone = \
+            self._get_branch_status_components()
 
-        if stdout == "## HEAD (no branch)":
-            return "HEAD is in a detached state."
+        secondary = ""
 
-        first_line, *_ = stdout.split("\n", 1)
-        if first_line.startswith("## Initial commit on "):
-            return "Initial commit on `{}`.".format(first_line[21:])
+        if detached:
+            status = "HEAD is in a detached state."
 
-        short_status_pattern = r"## ([A-Za-z0-9\-_]+)(\.\.\.([A-Za-z0-9\-_\/]+)( \[((ahead (\d+))(, )?)?(behind (\d+))?\])?)?"
-        status_match = re.match(short_status_pattern, first_line)
+        elif initial:
+            status = "Initial commit on `{}`.".format(branch)
 
-        if not status_match:
-            branch_name = first_line.split("\n", 2)[1]
-            return "On branch `{}`.".format(branch_name)
+        else:
+            tracking = " tracking `{}`".format(remote)
+            status = "On branch `{}`{}.".format(branch, tracking if remote else "")
 
-        branch, _, remote, _, _, _, ahead, _, _, behind = status_match.groups()
+            if ahead and behind:
+                secondary = "You're ahead by {} and behind by {}.".format(ahead, behind)
+            elif ahead:
+                secondary = "You're ahead by {}.".format(ahead)
+            elif behind:
+                secondary = "You're behind by {}.".format(behind)
+            elif gone:
+                secondary = "The remote branch is gone."
 
-        output = "On branch `{}`".format(branch)
+        if delim:
+            return delim.join((status, secondary)) if secondary else status
+        return status, secondary
 
-        if remote:
-            output += " tracking `{}`".format(remote)
+    def get_branch_status_short(self):
+        detached, initial, branch, remote, clean, ahead, behind, gone = \
+            self._get_branch_status_components()
 
-        if ahead and behind:
-            output += ". You're ahead by {} and behind by {}".format(ahead, behind)
-        elif ahead:
-            output += ". You're ahead by {}".format(ahead)
-        elif behind:
-            output += ". You're behind by {}".format(behind)
+        dirty = "" if clean else "*"
 
-        output += "."
+        if detached:
+            return "DETACHED" + dirty
+
+        output = branch + dirty
+
+        if ahead:
+            output += "+" + ahead
+        if behind:
+            output += "-" + behind
 
         return output
 
@@ -64,3 +117,17 @@ class ActiveBranchMixin():
         Get the SHA1 commit hash for the commit at HEAD.
         """
         return self.git("rev-parse", "HEAD").strip()
+
+    def get_latest_commit_msg_for_head(self):
+        """
+        Get last commit msg for the commit at HEAD.
+        """
+        stdout = self.git(
+            "log",
+            "-n 1",
+            "--pretty=format:%h %s",
+            "--abbrev-commit",
+            throw_on_stderr=False
+            ).strip()
+
+        return stdout or "No commits yet."

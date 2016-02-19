@@ -4,6 +4,7 @@ import sublime
 from sublime_plugin import WindowCommand
 
 from ..git_command import GitCommand
+from ...common import util
 
 
 NO_REPO_MESSAGE = ("It looks like you haven't initialized Git in this directory.  "
@@ -17,16 +18,24 @@ NO_CONFIG_MESSAGE = ("It looks like you haven't configured Git yet.  Would you "
                      "like to enter your name and email for Git to use?")
 
 
+views_with_offer_made = set()
+
+
 class GsOfferInit(WindowCommand):
 
     """
     If a git command fails indicating no git repo was found, this
     command will ask the user whether they'd like to init a new repo.
+
+    Offer only once per session for a given view.
     """
 
     def run(self):
-        if sublime.ok_cancel_dialog(NO_REPO_MESSAGE):
+        active_view_id = self.window.active_view().id()
+        if active_view_id not in views_with_offer_made and sublime.ok_cancel_dialog(NO_REPO_MESSAGE):
             self.window.run_command("gs_init")
+        else:
+            views_with_offer_made.add(active_view_id)
 
 
 class GsInit(WindowCommand, GitCommand):
@@ -66,6 +75,7 @@ class GsInit(WindowCommand, GitCommand):
         self.git("init", working_dir=path)
         sublime.status_message("{word_start}nitialized repo successfully.".format(
             word_start="Re-i" if re_init else "I"))
+        util.view.refresh_gitsavvy(self.window.active_view())
 
 
 class GsSetupUserCommand(WindowCommand, GitCommand):
